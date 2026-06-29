@@ -5,14 +5,16 @@ use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DoctorController;
 use App\Http\Controllers\DoctorScheduleController;
+use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PatientController;
+use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\ServiceController;
+use App\Http\Controllers\SlotController;
 use App\Http\Controllers\UserController;
-use App\Http\Controllers\Auth\ApiAuthController;
 use App\Http\Controllers\Auth\AuthController;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-
 
 /*
 |--------------------------------------------------------------------------
@@ -46,49 +48,68 @@ Route::prefix('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::prefix('admin')
-    ->middleware('auth:api','role:admin')
+    ->middleware(['auth:api', 'role:admin'])
     ->group(function () {
 
     // ─── Auth ────────────────────────────────────────────────────────────
-    Route::post('logout',          [ApiAuthController::class, 'logout']);
-    Route::post('update-profile',  [ApiAuthController::class, 'updateProfile']);
-    Route::put('update-password',  [AuthController::class, 'updatePassword']);
+    Route::post('logout',         [AuthController::class, 'logout']);
+    Route::put('change-password', [AuthController::class, 'changePassword']);
 
     // ─── Email Verification ──────────────────────────────────────────────
-    Route::get('email-verification/send',         [AuthController::class, 'sendVerificationEmail'])->middleware('throttle:1,3');
+    Route::get('email-verification/send', [AuthController::class, 'sendVerificationEmail'])
+         ->middleware('throttle:1,3');
 
     // ─── Admins CRUD ─────────────────────────────────────────────────────
-    // index, store, show, update, destroy
     Route::apiResource('admins', AdminController::class);
 
     // ─── Users CRUD ──────────────────────────────────────────────────────
-    // index, store, update, destroy (no show/create/edit)
     Route::apiResource('users', UserController::class)->except(['show', 'create', 'edit']);
 
     // ─── Doctors CRUD ────────────────────────────────────────────────────
-    // index, store, show, update, destroy
     Route::apiResource('doctors', DoctorController::class);
 
     // ─── Departments CRUD ────────────────────────────────────────────────
-    // index, store, show, update, destroy
     Route::apiResource('departments', DepartmentController::class);
 
     // ─── Appointments CRUD ───────────────────────────────────────────────
-    // index, store, show, update, destroy
     Route::apiResource('appointments', AppointmentController::class);
 
     // ─── Doctor Schedules CRUD ───────────────────────────────────────────
-    // index, store, update, destroy (no show/create/edit)
     Route::apiResource('schedules', DoctorScheduleController::class)->except(['show', 'create', 'edit']);
 
     // ─── Notifications ───────────────────────────────────────────────────
-    // index, update, destroy (no store/show/create/edit)
     Route::apiResource('notifications', NotificationController::class)->except(['store', 'show', 'create', 'edit']);
 
     // ─── Patients ────────────────────────────────────────────────────────
-    Route::get('patients/{patient}',         [PatientController::class, 'profile']);
-    Route::get('patients/search',            [PatientController::class, 'searchPatients']);
-    Route::put('patients/{patient}/profile', [PatientController::class, 'updateProfile']);
+    // NOTE: يجب أن يأتي /search قبل /{patient} لتجنب التعارض
+    Route::get('patients/search',   [PatientController::class, 'searchPatients']);
+    Route::get('patients/{patient}', [PatientController::class, 'show']);
+
+    // ─── Reviews ─────────────────────────────────────────────────────────
+    Route::get('reviews',             [ReviewController::class, 'index']);
+    Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
+
+    // ─── Payments ────────────────────────────────────────────────────────
+    Route::get('payments',              [PaymentController::class, 'index']);
+    Route::get('payments/{payment}',    [PaymentController::class, 'show']);
+    Route::put('payments/{payment}',    [PaymentController::class, 'update']);
+    Route::delete('payments/{payment}', [PaymentController::class, 'destroy']);
+
+    // ─── Services ────────────────────────────────────────────────────────
+    Route::get('services',            [ServiceController::class, 'index']);
+    Route::get('services/{service}',  [ServiceController::class, 'show']);
+    Route::post('services',           [ServiceController::class, 'store']);
+    Route::put('services/{service}',  [ServiceController::class, 'update']);
+    Route::delete('services/{service}', [ServiceController::class, 'destroy']);
+
+    // ─── Slots ───────────────────────────────────────────────────────────
+    Route::get('services/{service}/slots', [SlotController::class, 'index']);
+    Route::get('slots/{slot}',             [SlotController::class, 'show']);
+    Route::put('slots/{slot}',             [SlotController::class, 'update']);
+    Route::delete('slots/{slot}',          [SlotController::class, 'destroy']);
+
+    // ─── Favorites ───────────────────────────────────────────────────────
+    Route::get('favorites', [FavoriteController::class, 'adminIndex']);
 });
 
 /*
@@ -97,43 +118,66 @@ Route::prefix('admin')
 |--------------------------------------------------------------------------
 */
 Route::prefix('doctor')
-    ->middleware('auth:api','role:doctor')
+    ->middleware(['auth:api', 'role:doctor'])
     ->group(function () {
 
     // ─── Auth ────────────────────────────────────────────────────────────
-    Route::post('logout',          [ApiAuthController::class, 'logout']);
-    Route::post('update-profile',  [ApiAuthController::class, 'updateProfile']);
-    Route::put('update-password',  [AuthController::class, 'updatePassword']);
+    Route::post('logout',         [AuthController::class, 'logout']);
+    Route::put('change-password', [AuthController::class, 'changePassword']);
 
-    // ─── My Appointments (الدكتور يشوف مواعيده ويعدل عليها) ─────────────
-    Route::get('appointments',                        [AppointmentController::class, 'index']);
-    Route::get('appointments/{appointment}',          [AppointmentController::class, 'show']);
-    Route::put('appointments/{appointment}',          [AppointmentController::class, 'update']);
+    // ─── Profile (الدكتور يشوف ويعدل بروفايله) ───────────────────────────
+    Route::get('me', [DoctorController::class, 'profile']);
+    Route::put('updateProfile', [DoctorController::class, 'updateProfile']);
+
+    // ─── My Appointments ─────────────────────────────────────────────────
+    Route::get('appointments',               [AppointmentController::class, 'index']);
+    Route::get('appointments/{appointment}', [AppointmentController::class, 'show']);
+    Route::put('appointments/{appointment}', [AppointmentController::class, 'update']);
 
     // ─── My Schedule ─────────────────────────────────────────────────────
-    Route::get('schedules',                           [DoctorScheduleController::class, 'index']);
-    Route::post('schedules',                          [DoctorScheduleController::class, 'store']);
-    Route::put('schedules/{schedule}',                [DoctorScheduleController::class, 'update']);
-    Route::delete('schedules/{schedule}',             [DoctorScheduleController::class, 'destroy']);
+    Route::get('schedules',                [DoctorScheduleController::class, 'index']);
+    Route::post('schedules',               [DoctorScheduleController::class, 'store']);
+    Route::put('schedules/{schedule}',     [DoctorScheduleController::class, 'update']);
+    Route::delete('schedules/{schedule}',  [DoctorScheduleController::class, 'destroy']);
 
     // ─── Departments (عرض فقط) ───────────────────────────────────────────
-    Route::get('departments',                         [DepartmentController::class, 'index']);
-    Route::get('departments/{department}',            [DepartmentController::class, 'show']);
+    Route::get('departments',               [DepartmentController::class, 'index']);
+    Route::get('departments/{department}',  [DepartmentController::class, 'show']);
 
     // ─── Notifications ───────────────────────────────────────────────────
-    Route::get('notifications',                       [NotificationController::class, 'index']);
-    Route::put('notifications/{notification}',        [NotificationController::class, 'update']);
-    Route::delete('notifications/{notification}',     [NotificationController::class, 'destroy']);
+    Route::get('notifications',                    [NotificationController::class, 'index']);
+    Route::put('notifications/{notification}',     [NotificationController::class, 'update']);
+    Route::delete('notifications/{notification}',  [NotificationController::class, 'destroy']);
 
     // ─── Doctors (عرض + بحث) ─────────────────────────────────────────────
-    Route::get('doctors',                             [DoctorController::class, 'index']);
-    Route::get('doctors/search',                      [DoctorController::class, 'search']);
-    Route::get('doctors/top',                         [DoctorController::class, 'topDoctors']);
-    Route::get('doctors/{doctor}',                    [DoctorController::class, 'show']);
+    // NOTE: يجب أن تأتي /search و /top قبل /{doctor} لتجنب التعارض
+    Route::get('doctors/search',   [DoctorController::class, 'search']);
+    Route::get('doctors/top',      [DoctorController::class, 'topDoctors']);
+    Route::get('doctors',          [DoctorController::class, 'index']);
+    Route::get('doctors/{doctor}', [DoctorController::class, 'show']);
 
-    // ─── Patients (الدكتور يشوف ملف المريض) ──────────────────────────────
-    Route::get('patients/{patient}',                  [PatientController::class, 'profile']);
-    Route::get('patients/search',                     [PatientController::class, 'searchPatients']);
+    // ─── Patients (الدكتور يشوف ملف مريض معين) ───────────────────────────
+    // NOTE: /search قبل /{patient}
+    Route::get('patients/search',    [PatientController::class, 'searchPatients']);
+    Route::get('patients/{patient}', [PatientController::class, 'show']);
+
+    // ─── Reviews (الدكتور يشوف تقييماته) ─────────────────────────────────
+    Route::get('reviews',                   [ReviewController::class, 'index']);
+    Route::get('doctors/{doctor}/reviews',  [ReviewController::class, 'doctorReviews']);
+
+    // ─── My Services ─────────────────────────────────────────────────────
+    Route::get('services',              [ServiceController::class, 'index']);
+    Route::get('services/{service}',    [ServiceController::class, 'show']);
+    Route::post('services',             [ServiceController::class, 'store']);
+    Route::put('services/{service}',    [ServiceController::class, 'update']);
+    Route::delete('services/{service}', [ServiceController::class, 'destroy']);
+
+    // ─── My Slots ────────────────────────────────────────────────────────
+    Route::get('services/{service}/slots',  [SlotController::class, 'index']);
+    Route::post('services/{service}/slots', [SlotController::class, 'store']);
+    Route::get('slots/{slot}',              [SlotController::class, 'show']);
+    Route::put('slots/{slot}',              [SlotController::class, 'update']);
+    Route::delete('slots/{slot}',           [SlotController::class, 'destroy']);
 });
 
 /*
@@ -142,43 +186,66 @@ Route::prefix('doctor')
 |--------------------------------------------------------------------------
 */
 Route::prefix('user')
-    ->middleware('auth:api','role:user')
+    ->middleware(['auth:api', 'role:patient'])
     ->group(function () {
 
     // ─── Auth ────────────────────────────────────────────────────────────
-    Route::get('me',               fn (Request $request) => response()->json($request->user()));
-    Route::post('logout',          [ApiAuthController::class, 'logout']);
-    Route::post('update-profile',  [ApiAuthController::class, 'updateProfile']);
-    Route::put('update-password',  [AuthController::class, 'updatePassword']);
+    Route::post('logout',         [AuthController::class, 'logout']);
+    Route::put('change-password', [AuthController::class, 'changePassword']);
 
     // ─── Email Verification ──────────────────────────────────────────────
-    Route::get('email-verification/send',         [AuthController::class, 'sendVerificationEmail'])->middleware('throttle:1,3');
+    Route::get('email-verification/send', [AuthController::class, 'sendVerificationEmail'])
+         ->middleware('throttle:1,3');
 
-    // ─── Patient Profile ─────────────────────────────────────────────────
-    Route::get('profile/{patient}',              [PatientController::class, 'profile']);
-    Route::put('profile/{patient}',              [PatientController::class, 'updateProfile']);
+    // ─── Profile (المريض يشوف ويعدل بروفايله) ────────────────────────────
+    Route::get('me', [PatientController::class, 'profile']);
+    Route::put('updateProfile', [PatientController::class, 'updateProfile']);
 
     // ─── Appointments (حجز + عرض + إلغاء) ───────────────────────────────
-    Route::get('appointments',                   [AppointmentController::class, 'index']);
-    Route::post('appointments',                  [AppointmentController::class, 'store']);
-    Route::get('appointments/{appointment}',     [AppointmentController::class, 'show']);
-    Route::delete('appointments/{appointment}',  [AppointmentController::class, 'destroy']);
+    Route::get('appointments',                  [AppointmentController::class, 'index']);
+    Route::post('appointments',                 [AppointmentController::class, 'store']);
+    Route::get('appointments/{appointment}',    [AppointmentController::class, 'show']);
+    Route::delete('appointments/{appointment}', [AppointmentController::class, 'destroy']);
 
     // ─── Doctors (عرض + بحث) ─────────────────────────────────────────────
-    Route::get('doctors',                        [DoctorController::class, 'index']);
-    Route::get('doctors/search',                 [DoctorController::class, 'search']);
-    Route::get('doctors/top',                    [DoctorController::class, 'topDoctors']);
-    Route::get('doctors/{doctor}',               [DoctorController::class, 'show']);
+    // NOTE: /search و /top قبل /{doctor}
+    Route::get('doctors/search',   [DoctorController::class, 'search']);
+    Route::get('doctors/top',      [DoctorController::class, 'topDoctors']);
+    Route::get('doctors',          [DoctorController::class, 'index']);
+    Route::get('doctors/{doctor}', [DoctorController::class, 'show']);
 
     // ─── Departments (عرض فقط) ───────────────────────────────────────────
-    Route::get('departments',                    [DepartmentController::class, 'index']);
-    Route::get('departments/{department}',       [DepartmentController::class, 'show']);
+    Route::get('departments',              [DepartmentController::class, 'index']);
+    Route::get('departments/{department}', [DepartmentController::class, 'show']);
 
     // ─── Notifications ───────────────────────────────────────────────────
-    Route::get('notifications',                  [NotificationController::class, 'index']);
-    Route::put('notifications/{notification}',   [NotificationController::class, 'update']);
-    Route::delete('notifications/{notification}',[NotificationController::class, 'destroy']);
+    Route::get('notifications',                    [NotificationController::class, 'index']);
+    Route::put('notifications/{notification}',     [NotificationController::class, 'update']);
+    Route::delete('notifications/{notification}',  [NotificationController::class, 'destroy']);
 
+    // ─── Favorites (المفضلة) ─────────────────────────────────────────────
+    Route::get('favorites',              [FavoriteController::class, 'index']);
+    Route::post('favorites',             [FavoriteController::class, 'store']);
+    Route::delete('favorites/{doctor}',  [FavoriteController::class, 'destroy']);
 
+    // ─── Reviews ─────────────────────────────────────────────────────────
+    Route::get('reviews',                  [ReviewController::class, 'index']);
+    Route::post('reviews',                 [ReviewController::class, 'store']);
+    Route::put('reviews/{review}',         [ReviewController::class, 'update']);
+    Route::delete('reviews/{review}',      [ReviewController::class, 'destroy']);
+    Route::get('doctors/{doctor}/reviews', [ReviewController::class, 'doctorReviews']);
 
+    // ─── Payments (مدفوعاتي) ─────────────────────────────────────────────
+    Route::get('payments',           [PaymentController::class, 'index']);
+    Route::get('payments/{payment}', [PaymentController::class, 'show']);
+    Route::post('payments',          [PaymentController::class, 'store']);
+
+    // ─── Services (عرض خدمات الأطباء) ───────────────────────────────────
+    Route::get('services',                       [ServiceController::class, 'index']);
+    Route::get('services/{service}',             [ServiceController::class, 'show']);
+    Route::get('doctors/{doctor}/services',      [ServiceController::class, 'doctorServices']);
+
+    // ─── Slots (عرض السلوتات المتاحة) ───────────────────────────────────
+    Route::get('services/{service}/slots', [SlotController::class, 'index']);
+    Route::get('slots/{slot}',             [SlotController::class, 'show']);
 });

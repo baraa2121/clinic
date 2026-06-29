@@ -6,15 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Patient extends Model
 {
-    //
     protected $fillable = [
         'user_id',
-        'name',
         'phone',
         'address',
         'birth_date',
-        // باقي الحقول...
     ];
+
     public function user()
     {
         return $this->belongsTo(User::class);
@@ -28,5 +26,19 @@ class Patient extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+    public function reviews()
+    {
+        return $this->hasMany(Review::class);
+    }
+
+    public function favorites()
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function chats()
+    {
+        return $this->hasMany(Chat::class);
     }
 }

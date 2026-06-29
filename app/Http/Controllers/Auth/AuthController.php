@@ -1,7 +1,7 @@
 <?php
 
 namespace App\Http\Controllers\Auth;
-use Illuminate\Support\Facades\Http;
+
 use App\Http\Controllers\Controller;
 use App\Models\Patient;
 use App\Models\User;
@@ -9,65 +9,27 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Password as PasswordBroker;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Foundation\Auth\EmailVerificationRequest;
-use Illuminate\Support\Facades\Password;
 use Symfony\Component\HttpFoundation\Response;
-
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password as PasswordRule;
+use Illuminate\Support\Facades\Http;
 class AuthController extends Controller
 {
-    //
-    /*
-    *Authuntcation Methods
-    1-Login
-    2-Logout
-    3-ForgotPassword
-    4-Reset Password
-    5- Change Password
-    6- Update profile
-    7-Verify Email
-    */
-    //     function Login(Request $request,string $guard)
-    // {
-    //     $validator = Validator($request->all(), [
-    //         'email' => 'required|email|exists:admins,email',
-    //         'password' => 'required|String',
-    //         'remember' => 'required|boolean',
-    //     ]);
-    //     if (!$validator->fails()) {
-           
-    //         if (Auth::guard(session('guard'))->attempt($request->only(['email', 'password']), $request->input('remember'))) {
-    //             return response()->json([
-    //                 'status' => true,
-    //                 'message' => 'Logged in succsessfully',
-    //                 Response::HTTP_OK
-    //             ]);
-    //         } else {
-    //             return response()->json([
-    //                 'status' => false,
-    //                 'message' => 'Wrong email or password',
-    //                 Response::HTTP_BAD_REQUEST
-    //             ]);
-    //         }
-    //     } else {
-    //         return response()->json(
-    //             ['status' => false, 'message' => $validator->getMessageBag()->first()],
-    //             Response::HTTP_BAD_REQUEST
-    //         );
-    //     }
-    // }
+  
 public function login(Request $request)
 {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|email:exists:users,email',
-            'password' => 'required|string',
+        'email' => 'required|email|exists:users,email',
+        'password' => 'required|string',
         ]);
 
     $response = Http::asForm()->post('http://127.0.0.1:8001/oauth/token', [
         'grant_type' => 'password',
-        'client_id' => env('USER_CLIENT_ID'),
-        'client_secret' => env('USER_CLIENT_SECRET'),
+        'client_id' =>'019ee476-b48f-73a7-afc7-34abc56fc79f',
+        'client_secret' =>'Qz7HJOmkEkB9tx0HK148mDy5S2HUPObPtSRpcXBo',
         'username' => $request->email,
         'password' => $request->password,
         'scope' => '*',
@@ -89,7 +51,7 @@ public function login(Request $request)
         'expires_in' => $json['expires_in'],
         'user'=>$user = User::where('email', $request->email)->first()
     ]);
-}
+}  
   
     public function register(Request $request)
 {
@@ -138,44 +100,6 @@ public function login(Request $request)
 }
 
 
-    function showLogin(Request $request,string $guard)
-    {
-
-        return response()->view('cms.pages.auth.login', compact('guard'));
-    }
-
-    function editPassword(Request $request)
-    {
-        // Add edit password form logic here if needed
-    }
-
-    function updatePassword(Request $request)
-    {
-        $validator = Validator($request->all(), [
-            'current_password' => 'required',
-            'new_password' => ['required', 'confirmed', Password::min(8)
-                ->letters()->mixedCase()->numbers()->symbols()->uncompromised()],
-        ]);
-
-        if (!$validator->fails()) {
-            $user = $request->user(session('guard'));
-            $user->password = Hash::make($request->input('new_password'));
-            $saved = $user->save();
-
-            return response()->json(
-                ['status' => $saved, 'message' => $saved ? "Password Updated Successfully" : "Password Update Failed!"],
-                $saved ? Response::HTTP_OK : Response::HTTP_BAD_REQUEST
-            );
-        }
-
-        return response()->json(
-            ['status' => false, 'message' => $validator->getMessageBag()->first()],
-            Response::HTTP_BAD_REQUEST
-        );
-    }
-
-  
-
     function sendVerificationEmail(Request $request)
     {
         $user = $request->user();
@@ -195,72 +119,112 @@ public function login(Request $request)
         ]);
     }
 
-    function changePassword(Request $request)
-    {
-        $validator = Validator($request->all(), [
-            'password' => 'required|string|current_password:user-api',
-            'new_password' => [
-                'required', 'confirmed', 'string',
-                Password::min(3)
-                    ->letters()
-                    ->symbols()
-                    ->mixedCase()
-                    ->uncompromised()
-            ]
-        ]);
+function changePassword(Request $request)
+{
+    // 1) تحقق من البيانات (بدون current_password rule)
+    $validator = Validator::make($request->all(), [
+        'password' => 'required|string', // كلمة المرور الحالية
+        'new_password' => [
+            'required',
+            'confirmed',
+            'string',
+            Password::min(8)
+                ->letters()
+                ->symbols()
+                ->mixedCase()
+                ->uncompromised()
+        ]
+    ]);
 
-        if (!$validator->fails()) {
-            $request->user()->forceFill([
-                'password' => Hash::make($request->input('new_password')),
-            ]);
-            $request->user()->save();
-
-            return response()->json(
-                ['status' => true, 'message' => 'Password changed successfully'],
-                Response::HTTP_OK
-            );
-        }
-
-        return response()->json(
-            ['status' => false, 'message' => $validator->getMessageBag()->first()],
-            Response::HTTP_BAD_REQUEST
-        );
+    if ($validator->fails()) {
+        return response()->json([
+            'status' => false,
+            'message' => $validator->errors()->first()
+        ], Response::HTTP_BAD_REQUEST);
     }
 
-    protected function getBroker()
-    {
-        $guard = session('guard', config('auth.defaults.guard'));
+    $user = $request->user();
 
-        return $guard === 'admin' ? 'admins' : 'users';
+    // 2) تحقق يدوي من كلمة المرور الحالية (الأهم)
+    if (!Hash::check($request->password, $user->password)) {
+        return response()->json([
+            'status' => false,
+            'message' => 'Current password is incorrect'
+        ], Response::HTTP_FORBIDDEN);
     }
 
-    function requestPasswordReset(Request $request)   
-     {
-    $validator = Validator($request->all(), [
+    // 3) تحديث كلمة المرور
+    $user->update([
+        'password' => Hash::make($request->new_password)
+    ]);
+
+    return response()->json([
+        'status' => true,
+        'message' => 'Password changed successfully'
+    ], Response::HTTP_OK);
+}
+
+  public function requestPasswordReset(Request $request)
+{
+    $validator = Validator::make($request->all(), [
         'email' => 'required|email',
     ]);
 
     if ($validator->fails()) {
         return response()->json([
             'status' => false,
-            'message' => $validator->getMessageBag()->first()
+            'message' => $validator->errors()->first()
         ], 400);
     }
 
-    $status = Password::broker($this->getBroker())
-        ->sendResetLink($request->only('email'));
+    $status = Password::sendResetLink(
+        $request->only('email')
+    );
 
     return response()->json([
-        'status' => $status == Password::RESET_LINK_SENT,
+        'status' => $status === Password::RESET_LINK_SENT,
         'message' => __($status)
-    ], $status == Password::RESET_LINK_SENT ? 200 : 400);
+    ], $status === Password::RESET_LINK_SENT ? 200 : 400);
+     
 }
-    function logout(Request $request)
-    {
-        $guard = session('guard');
-        auth($guard)->logout();
-        $request->session()->invalidate();
 
-        return redirect()->route('login', $guard ?? 'admin');
+public function resetPassword(Request $request)
+{
+    $request->validate([
+        'token' => 'required',
+        'email' => 'required|email',
+        'password' => 'required|min:8|confirmed',
+    ]);
+
+    $status = Password::reset(
+        $request->only('email', 'password', 'password_confirmation', 'token'),
+        function ($user, $password) {
+            $user->forceFill([
+                'password' => Hash::make($password),
+                'remember_token' => Str::random(60),
+            ])->save();
+        }
+    );
+
+    return response()->json([
+        'status' => $status === Password::PASSWORD_RESET,
+        'message' => $status === Password::PASSWORD_RESET
+            ? 'Password reset successfully'
+            : 'Invalid token or email'
+    ], $status === Password::PASSWORD_RESET ? 200 : 400);
+}
+    
+    public function logout(Request $request)
+    {
+        $user = $request->user('api');
+        $revoked = $user->token()->revoke();
+        return response()->json(
+            [
+                'status' => $revoked,
+                "message" => $revoked ? 'Logged out successfully' : 'Logged out failed',
+                'user' => $revoked
+            ],
+            $revoked ? Response::HTTP_OK : Response::HTTP_BAD_REQUEST
+        );
     }
 }

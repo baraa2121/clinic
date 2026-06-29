@@ -6,7 +6,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Payment extends Model
 {
-    //
+    protected $fillable = [
+        'appointment_id',
+        'patient_id',
+        'amount',
+        'method',
+        'status',
+    ];
+
     public function appointment()
     {
         return $this->belongsTo(Appointment::class);
