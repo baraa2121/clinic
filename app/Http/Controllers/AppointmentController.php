@@ -3,167 +3,126 @@
 namespace App\Http\Controllers;
 
 use App\Models\Appointment;
-use App\Models\Schedule;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class AppointmentController extends Controller
 {
-    /**
-     * GET all appointments
-     */
-    public function index()
+    public function index(Request $request)
     {
-        $appointments = Appointment::with(['doctor', 'patient'])
-            ->latest()
-            ->paginate(10);
+        $user  = $request->user();
+        $query = Appointment::with(['doctor.user', 'patient.user'])->latest();
+
+        if ($user->role === 'doctor' && $user->doctor) {
+            $query->where('doctor_id', $user->doctor->id);
+        } elseif ($user->role === 'patient' && $user->patient) {
+            $query->where('patient_id', $user->patient->id);
+        }
+        // admin: no filter
 
         return response()->json([
             'status' => true,
-            'data' => $appointments
-        ], Response::HTTP_OK);
+            'data'   => $query->paginate(20),
+        ]);
     }
 
-    /**
-     * CREATE appointment (Booking)
-     */
     public function store(Request $request)
     {
+        $patient = $request->user()->patient;
+
+        if (!$patient) {
+            return response()->json([
+                'status'  => false,
+                'message' => 'Patient profile not found',
+            ], 404);
+        }
+
         $validator = validator($request->all(), [
-            'patient_id' => 'required|exists:patients,id',
-            'doctor_id'  => 'required|exists:doctors,id',
-            'date'       => 'required|date',
-            'time'       => 'required',
+            'doctor_id'        => 'required|exists:doctors,id',
+            'appointment_date' => 'required|date',
+            'appointment_time' => 'required|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
-                'message' => $validator->errors()->first()
+                'status'  => false,
+                'message' => $validator->errors()->first(),
             ], 400);
         }
 
-        $doctorId = $request->doctor_id;
-        $date     = $request->date;
-        $time     = $request->time;
-
-        $dayOfWeek = date('w', strtotime($date)); // 0 = Sunday
-
-        /**
-         * 🧠 1. Check if doctor works this day
-         */
-        $schedule = Schedule::where('doctor_id', $doctorId)
-            ->where('day_of_week', $dayOfWeek)
-            ->first();
-
-        if (!$schedule) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Doctor is not available on this day'
-            ], 422);
-        }
-
-        /**
-         * 🧠 2. Check if time is inside working hours
-         */
-        if ($time < $schedule->start_time || $time > $schedule->end_time) {
-            return response()->json([
-                'status' => false,
-                'message' => 'Selected time is outside doctor working hours'
-            ], 422);
-        }
-
-        /**
-         * 🧠 3. Check overlapping appointments
-         */
-        $exists = Appointment::where('doctor_id', $doctorId)
-            ->where('appointment_date', $date)
-            ->where('appointment_time', $time)
+        // Check for duplicate booking
+        $exists = Appointment::where('doctor_id', $request->doctor_id)
+            ->where('appointment_date', $request->appointment_date)
+            ->where('appointment_time', $request->appointment_time)
             ->whereIn('status', ['pending', 'confirmed'])
             ->exists();
 
         if ($exists) {
             return response()->json([
-                'status' => false,
-                'message' => 'This time slot is already booked'
+                'status'  => false,
+                'message' => 'This time slot is already booked',
             ], 409);
         }
 
-        /**
-         * 🧠 4. Create appointment
-         */
         $appointment = Appointment::create([
-            'patient_id' => $request->patient_id,
-            'doctor_id'  => $doctorId,
-            'appointment_date' => $date,
-            'appointment_time' => $time,
-            'status' => 'pending'
+            'patient_id'       => $patient->id,
+            'doctor_id'        => $request->doctor_id,
+            'appointment_date' => $request->appointment_date,
+            'appointment_time' => $request->appointment_time,
+            'status'           => 'pending',
         ]);
 
         return response()->json([
-            'status' => true,
-            'message' => 'Appointment created successfully',
-            'data' => $appointment
+            'status'  => true,
+            'message' => 'Appointment booked successfully',
+            'data'    => $appointment->load(['doctor.user', 'patient.user']),
         ], 201);
     }
 
-    /**
-     * SHOW appointment
-     */
     public function show(Appointment $appointment)
     {
         return response()->json([
             'status' => true,
-            'data' => $appointment->load(['doctor', 'patient'])
-        ], Response::HTTP_OK);
+            'data'   => $appointment->load(['doctor.user', 'patient.user']),
+        ]);
     }
 
-    /**
-     * UPDATE status (Doctor actions)
-     */
     public function update(Request $request, Appointment $appointment)
     {
         $validator = validator($request->all(), [
-            'status' => 'required|in:pending,confirmed,completed,cancelled'
+            'status' => 'required|in:pending,confirmed,completed,cancelled',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
-                'status' => false,
-                'message' => $validator->errors()->first()
+                'status'  => false,
+                'message' => $validator->errors()->first(),
             ], 400);
         }
 
-        $appointment->update([
-            'status' => $request->status
-        ]);
+        $appointment->update(['status' => $request->status]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Appointment updated successfully',
-            'data' => $appointment
-        ], 200);
+            'data'    => $appointment,
+        ]);
     }
 
-    /**
-     * CANCEL appointment (soft logic)
-     */
     public function destroy(Appointment $appointment)
     {
-        if (in_array($appointment->status, ['completed'])) {
+        if ($appointment->status === 'completed') {
             return response()->json([
-                'status' => false,
-                'message' => 'Completed appointments cannot be cancelled'
+                'status'  => false,
+                'message' => 'Completed appointments cannot be cancelled',
             ], 403);
         }
 
-        $appointment->update([
-            'status' => 'cancelled'
-        ]);
+        $appointment->update(['status' => 'cancelled']);
 
         return response()->json([
-            'status' => true,
-            'message' => 'Appointment cancelled successfully'
-        ], Response::HTTP_OK);
+            'status'  => true,
+            'message' => 'Appointment cancelled successfully',
+        ]);
     }
 }

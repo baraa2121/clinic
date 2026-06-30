@@ -14,9 +14,9 @@ class PatientController extends Controller
      * عرض بروفايل المريض المسجّل دخوله (للمريض نفسه)
      * GET /api/user/profile
      */
-    public function profile()
+    public function profile(Request $request)
     {
-        $patient = Auth::user()->patient;
+        $patient = $request->user()->patient;
 
         if (!$patient) {
             return response()->json([
@@ -37,7 +37,7 @@ class PatientController extends Controller
      */
     public function updateProfile(Request $request)
     {
-        $patient = Auth::user()->patient;
+        $patient = $request->user()->patient;
 
         if (!$patient) {
             return response()->json([

@@ -14,6 +14,8 @@ class Doctor extends Model
         'consultation_fee',
         'experience_years',
         'is_approved',
+        'image',
+        'address',
     ];
 
     public function user()

@@ -52,6 +52,11 @@ class User extends Authenticatable
         return $this->hasMany(Notification::class);
     }
 
+    public function hasRole(string $role): bool
+    {
+        return $this->role === $role;
+    }
+
     public function findForPassport(string $username): User
     {
         return $this->where('email', $username)->first();

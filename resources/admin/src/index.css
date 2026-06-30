@@ -1,0 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@200..1000&family=Outfit:wght@100..900&display=swap');
+
+@import "tailwindcss";
+
+@theme {
+    /* تعريف اللون الأساسي للمشروع */
+    --color-primary: #5f6FFF;
+
+    --color-primary-dark: #4e5adb;
+
+
+}
+
+::-webkit-scrollbar {
+    @apply hidden
+}
+
+*{
+    font-family: Outfit;
+}

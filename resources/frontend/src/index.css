@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@100..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+    --color-primary: #5f6FFF;
+    --color-primary-dark: #4e5adb;
+    --color-primary-light: #eef0ff;
+    --grid-template-columns-auto: repeat(auto-fill, minmax(200px, 1fr));
+}
+
+.active hr { @apply block }
+
+::-webkit-scrollbar { @apply hidden }
+
+@media(max-width:740px){
+    .active p { @apply text-white bg-primary }
+}
+
+* { font-family: 'Outfit', sans-serif; }
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}

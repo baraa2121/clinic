@@ -21,35 +21,33 @@ class AuthController extends Controller
   
 public function login(Request $request)
 {
-        $validator = Validator::make($request->all(), [
-        'email' => 'required|email|exists:users,email',
+    $validator = Validator::make($request->all(), [
+        'email'    => 'required|email',
         'password' => 'required|string',
-        ]);
-
-    $response = Http::asForm()->post('http://127.0.0.1:8001/oauth/token', [
-        'grant_type' => 'password',
-        'client_id' =>'019ee476-b48f-73a7-afc7-34abc56fc79f',
-        'client_secret' =>'Qz7HJOmkEkB9tx0HK148mDy5S2HUPObPtSRpcXBo',
-        'username' => $request->email,
-        'password' => $request->password,
-        'scope' => '*',
     ]);
 
-    $json = $response->json();
-
-    if (!isset($json['access_token'])) {
+    if ($validator->fails()) {
         return response()->json([
-            'status' => false,
-            'message' => 'Invalid credentials'
+            'status'  => false,
+            'message' => $validator->getMessageBag()->first(),
+        ], 422);
+    }
+
+    if (!Auth::guard('web')->attempt(['email' => $request->email, 'password' => $request->password])) {
+        return response()->json([
+            'status'  => false,
+            'message' => 'Invalid credentials',
         ], 401);
     }
 
+    $user  = Auth::guard('web')->user();
+    $token = $user->createToken('auth-token')->accessToken;
+
     return response()->json([
-        'status' => true,
-        'access_token' => $json['access_token'],
-        'token_type' => $json['token_type'],
-        'expires_in' => $json['expires_in'],
-        'user'=>$user = User::where('email', $request->email)->first()
+        'status'       => true,
+        'access_token' => $token,
+        'token_type'   => 'Bearer',
+        'user'         => $user,
     ]);
 }  
   
@@ -72,30 +70,27 @@ public function login(Request $request)
     // Create User
     // =========================
     $user = User::create([
-        'name' => $request->name,
-        'email' => $request->email,
+        'name'     => $request->name,
+        'email'    => $request->email,
         'password' => Hash::make($request->password),
-      // مهم جدًا
+        'role'     => 'patient',
     ]);
 
-    // =========================
-    // Create Patient profile
-    // =========================
     Patient::create([
-        'user_id' => $user->id,
-        'national_id' => null,
+        'user_id'       => $user->id,
+        'national_id'   => null,
         'date_of_birth' => null,
-        'address' => null,
+        'address'       => null,
     ]);
 
-    // =========================
-    // Create API Token (Sanctum)
-    // =========================
+    $token = $user->createToken('auth-token')->accessToken;
 
     return response()->json([
-        'status' => true,
-        'message' => 'Registered successfully',
-        'user' => $user,
+        'status'       => true,
+        'message'      => 'Registered successfully',
+        'access_token' => $token,
+        'token_type'   => 'Bearer',
+        'user'         => $user,
     ], 201);
 }
 

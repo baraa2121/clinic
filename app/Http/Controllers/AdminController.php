@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
+use App\Models\Doctor;
+use App\Models\Patient;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -11,6 +14,20 @@ use Illuminate\Support\Facades\Auth;
 
 class AdminController extends Controller
 {
+    public function dashboard()
+    {
+        return response()->json([
+            'status' => true,
+            'data'   => [
+                'doctors'      => Doctor::count(),
+                'appointments' => Appointment::count(),
+                'patients'     => Patient::count(),
+                'latestAppointments' => Appointment::with(['doctor.user', 'patient.user'])
+                    ->latest()->take(5)->get(),
+            ],
+        ]);
+    }
+
     public function index()
     {
         $admins = User::where('role', 'admin')->get();

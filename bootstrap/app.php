@@ -12,12 +12,11 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-        
-        // تفعيل الـ API ليتعامل مع طلبات الـ Single Page Applications (SPA) والفرونت إند
+
         $middleware->statefulApi();
 
-        // السماح لمنفذ الفرونت إند بالوصول وتخطي حماية CORS
-        $middleware->trustHosts(at: ['localhost:5174']);
+        // Trust all localhost ports used by the React dev servers
+        $middleware->trustHosts(at: ['localhost', 'localhost:5173', 'localhost:5174', '127.0.0.1']);
 
         $middleware->alias([
             // Laravel auth

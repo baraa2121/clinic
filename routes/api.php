@@ -32,6 +32,19 @@ use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
+| 🌐 Public Routes — no auth required (home page doctors listing)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('public')->group(function () {
+    Route::get('doctors/top',      [DoctorController::class, 'topDoctors']);
+    Route::get('doctors/search',   [DoctorController::class, 'search']);
+    Route::get('doctors/{doctor}', [DoctorController::class, 'show']);
+    Route::get('doctors',          [DoctorController::class, 'index']);
+    Route::get('departments',      [DepartmentController::class, 'index']);
+});
+
+/*
+|--------------------------------------------------------------------------
 | 🔓 Guest Routes — لا تحتاج تسجيل دخول
 |--------------------------------------------------------------------------
 */
@@ -58,6 +71,9 @@ Route::prefix('admin')
     // ─── Email Verification ──────────────────────────────────────────────
     Route::get('email-verification/send', [AuthController::class, 'sendVerificationEmail'])
          ->middleware('throttle:1,3');
+
+    // ─── Dashboard ───────────────────────────────────────────────────────
+    Route::get('dashboard', [AdminController::class, 'dashboard']);
 
     // ─── Admins CRUD ─────────────────────────────────────────────────────
     Route::apiResource('admins', AdminController::class);
@@ -124,6 +140,9 @@ Route::prefix('doctor')
     // ─── Auth ────────────────────────────────────────────────────────────
     Route::post('logout',         [AuthController::class, 'logout']);
     Route::put('change-password', [AuthController::class, 'changePassword']);
+
+    // ─── Dashboard ───────────────────────────────────────────────────────
+    Route::get('dashboard', [DoctorController::class, 'dashboard']);
 
     // ─── Profile (الدكتور يشوف ويعدل بروفايله) ───────────────────────────
     Route::get('me', [DoctorController::class, 'profile']);
